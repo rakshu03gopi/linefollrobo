@@ -1,91 +1,102 @@
-# linefollrobo
-# 🤖 Autonomous Line Following Delivery Robot
+# linefollrobo 🤖
 
-An Arduino-based autonomous line-following robot capable of navigating to user-selected destinations, detecting nodes, performing predefined turns, and automatically returning to the starting point.
-
-## 🚀 Features
-
-- Line following using 3 IR sensors
-- Serial command-based destination selection (Nodes 1–8)
-- Automatic node detection
-- Predefined left turns at selected junctions
-- Automatic 180° return after reaching destination
-- Buzzer feedback for important events
-- Simple state-machine based navigation
+An autonomous line-following robot built during my internship at IVW Private Limited.  
+Navigates a black-line track to a user-specified node (1–8), stops at the destination, and autonomously returns to the start.
 
 ---
 
-## 🛠️ Hardware Used
+## What it does
 
-- Arduino Uno
-- L298N Motor Driver
-- 2 DC Geared Motors
-- 3 IR Line Sensors
-- Buzzer
-- Chassis with Wheels
-- Battery Pack
-
----
-
-## 📌 Working
-
-1. Upload the Arduino code.
-2. Open the Serial Monitor (9600 baud).
-3. Send a destination node (1–8).
-4. The robot follows the line and counts junctions.
-5. At predefined nodes, it performs left turns.
-6. On reaching the destination, it stops and performs a 180° turn.
-7. The robot follows the same path back to the starting point.
+- User sends a target node number (1–8) via Serial/GUI
+- Robot follows a black line using 3 IR sensors
+- Counts intersections (full-black nodes) to track position
+- Executes pre-programmed left turns at specific nodes (4 & 5)
+- On reaching the target: beeps, performs a 180° U-turn, and returns home
+- Buzzer provides audio feedback at each stage
 
 ---
 
-## ⚙️ Navigation Logic
+## Hardware
 
-- **Node Detection:** All three sensors detect black (`111`).
-- **Forward Motion:** Center sensor follows the line.
-- **Turns:** Configurable using the `leftTurnNode[]` array.
-- **Return Mode:** Automatically activated after reaching the destination.
-- **Buzzer:** Indicates command received, destination reached, and return completion.
-
----
-
-## 📂 Pin Configuration
-
-| Component | Pin |
-|-----------|-----|
-| Left Sensor | A0 |
-| Middle Sensor | A1 |
-| Right Sensor | A2 |
-| Left Motor EN | 6 |
-| Right Motor EN | 11 |
-| Left Motor IN1 | 10 |
-| Left Motor IN2 | 9 |
-| Right Motor IN1 | 8 |
-| Right Motor IN2 | 7 |
-| Buzzer | 12 |
+| Component | Details |
+|---|---|
+| Microcontroller | Arduino (Uno/Nano) |
+| IR Sensors | 3-channel (Left A0, Middle A1, Right A2) — HIGH = black |
+| Motor Driver | L298N dual H-bridge |
+| Motors | 2× DC gear motors |
+| Buzzer | Pin 12 |
+| Communication | Serial (9600 baud) via USB / GUI |
 
 ---
 
-## 💻 Technologies
+## How it works
 
-- Arduino C/C++
-- Embedded Systems
-- Motor Control
-- Line Following
-- State Machine Logic
+### Sensor pattern → action (3-bit encoding)
+
+| Pattern (L M R) | Action |
+|---|---|
+| `010` | Move forward (on line) |
+| `110` / `100` | Veer right (line drifted left) |
+| `011` / `001` | Veer left (line drifted right) |
+| `111` | **Node detected** — count + turn logic |
+| `000` | Lost line — recover using last known direction |
+
+### Node navigation
+
+- Each `111` (full black) intersection increments `nodeCount`
+- Nodes 4 and 5 are programmed as left-turn nodes (`leftTurnNode[]` array)
+- On reaching `targetNode`: executes 180° right spin (~650 ms), then returns
+- On returning to start (`nodeCount == targetNode` while `returning = true`): stops and resets
 
 ---
 
-## 📈 Future Improvements
+## State machine
 
-- PID-based line following
-- Obstacle detection using Ultrasonic Sensor
-- RFID/QR-based node identification
-- Wireless destination selection via Bluetooth/Wi-Fi
-- Dynamic path planning
+```
+WAIT FOR COMMAND
+      ↓
+FOLLOW LINE → detect node → increment counter
+      ↓                          ↓
+  keep going            left turn? (node 4/5)
+                                 ↓
+                      reached target? → U-TURN → return home
+                                                      ↓
+                                               reached start → STOP + RESET
+```
 
 ---
 
-## 📜 License
+## Serial commands
 
-This project is intended for educational and research purposes.
+| Input | Action |
+|---|---|
+| `1` – `8` | Set target node and start |
+
+Output logs position, turns, destination reached, and return events.
+
+---
+
+## Key parameters to tune per chassis
+
+```cpp
+delay(500);   // Left turn duration   — line 55
+delay(650);   // 180° U-turn duration — line 73
+delay(30);    // Main loop cycle time — line 105
+```
+
+---
+
+## Results
+
+- Navigated all 8 nodes reliably across straight and intersection track layouts  
+- Zero line-loss events in final internship demo  
+- U-turn and return path functioned correctly across 3 test runs
+
+---
+
+## What I'd improve next
+
+- Replace 3-sensor array with 5-channel for smoother PID-based steering  
+- Add encoder feedback to replace time-based turn logic (more reliable across surfaces)  
+- Replace hardcoded `leftTurnNode[]` with runtime path upload via Serial  
+- Add RFID tags at each node for absolute position confirmation (eliminates miscounts on missed nodes)
